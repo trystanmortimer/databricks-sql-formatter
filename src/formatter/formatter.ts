@@ -30,6 +30,9 @@ export function formatDatabricksSQL(
   let ddlContext = false;
   let blockParenPending = false;
 
+  // Function definition context — COMMENT becomes a clause keyword
+  let functionContext = false;
+
   // Track when a subquery/block paren closes inside a grouping paren,
   // so subsequent content goes on new lines instead of continuing inline
   let afterBlockClose = false;
@@ -131,6 +134,8 @@ export function formatDatabricksSQL(
         ddlContext = true;
       } else if ((val === 'TABLE' || val === 'VIEW') && ddlContext) {
         blockParenPending = true;
+      } else if (val === 'FUNCTION' && ddlContext) {
+        functionContext = true;
       } else if (val === 'AS' && ddlContext) {
         // CTAS — no column definitions
         blockParenPending = false;
@@ -149,6 +154,7 @@ export function formatDatabricksSQL(
       statementStart = true;
       ddlContext = false;
       blockParenPending = false;
+      functionContext = false;
       afterBlockClose = false;
       caseStack.length = 0;
       needNewlineBeforeFirstColumn = false;
@@ -300,6 +306,18 @@ export function formatDatabricksSQL(
       }
       result.push(indent() + applyCase(token));
       indentLevel = caseStack.pop()!;
+      lineStart = false;
+      statementStart = false;
+      prevMeaningful = token;
+      continue;
+    }
+
+    // COMMENT as a clause keyword in function definitions
+    if (token.type === TokenType.Keyword && token.value === 'COMMENT' && functionContext) {
+      if (!lineStart && result.length > 0) {
+        result.push('\n');
+      }
+      result.push(indent() + applyCase(token));
       lineStart = false;
       statementStart = false;
       prevMeaningful = token;
