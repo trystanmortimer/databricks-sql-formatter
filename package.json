@@ -1,0 +1,91 @@
+{
+  "name": "databricks-sql-formatter",
+  "displayName": "Databricks SQL Formatter",
+  "description": "A VS Code extension for formatting Databricks SQL, built from scratch.",
+  "version": "0.0.6",
+  "publisher": "trystanmortimer",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Formatters", "Programming Languages"],
+  "keywords": ["sql", "databricks", "formatter", "format", "spark sql"],
+  "activationEvents": [
+    "onLanguage:sql"
+  ],
+  "icon": "icon.png",
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "databricks-sql-formatter.formatSQL",
+        "title": "Format Databricks SQL"
+      }
+    ],
+    "languages": [
+      {
+        "id": "sql",
+        "aliases": ["SQL", "sql"],
+        "extensions": [".sql"]
+      }
+    ],
+    "configuration": {
+      "title": "Databricks SQL Formatter",
+      "properties": {
+        "databricksSqlFormatter.indentSize": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "maximum": 16,
+          "description": "Number of spaces per indentation level.",
+          "order": 1
+        },
+        "databricksSqlFormatter.keywordCase": {
+          "type": "string",
+          "default": "upper",
+          "enum": ["upper", "lower", "preserve"],
+          "enumDescriptions": [
+            "Convert all keywords to UPPER CASE",
+            "Convert all keywords to lower case",
+            "Keep keywords in their original casing"
+          ],
+          "description": "Keyword casing style.",
+          "order": 2
+        },
+        "databricksSqlFormatter.commaPosition": {
+          "type": "string",
+          "default": "trailing",
+          "enum": ["leading", "trailing"],
+          "enumDescriptions": [
+            "Place commas at the start of each line (e.g. , col)",
+            "Place commas at the end of each line (e.g. col,)"
+          ],
+          "description": "Position of commas in column lists.",
+          "order": 3
+        },
+        "databricksSqlFormatter.formatOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically format SQL files on save.",
+          "order": 4
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package": "vsce package",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^2.0.0",
+    "@vscode/vsce": "^3.0.0"
+  }
+}
