@@ -675,4 +675,81 @@ describe('formatDatabricksSQL', () => {
       'FROM t\n'
     );
   });
+
+  // --- Dollar-quoted strings / YAML blocks ---
+
+  it('preserves dollar-quoted YAML block content verbatim', () => {
+    const input =
+      'USE CATALOG IDENTIFIER(:catalog);\n\n' +
+      'CREATE OR REPLACE VIEW gold_model_schema.fact_metrics\n' +
+      'WITH METRICS\n' +
+      'LANGUAGE YAML\n' +
+      'AS $$\n' +
+      '  version: 1.1\n' +
+      '  comment: "Fact Table Metric View"\n' +
+      '  source: gold_model_schema.fact_table\n' +
+      '  dimensions:\n' +
+      '    - name: Snapshot Date\n' +
+      '      expr: snapshot_date\n' +
+      '    - name: Region\n' +
+      '      expr: region\n' +
+      '  measures:\n' +
+      '    - name: Record Count\n' +
+      '      expr: COUNT(1)\n' +
+      '$$;';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'USE CATALOG IDENTIFIER(:catalog);\n\n' +
+      'CREATE OR REPLACE VIEW gold_model_schema.fact_metrics\n' +
+      'WITH METRICS\n' +
+      'LANGUAGE YAML AS $$\n' +
+      '  version: 1.1\n' +
+      '  comment: "Fact Table Metric View"\n' +
+      '  source: gold_model_schema.fact_table\n' +
+      '  dimensions:\n' +
+      '    - name: Snapshot Date\n' +
+      '      expr: snapshot_date\n' +
+      '    - name: Region\n' +
+      '      expr: region\n' +
+      '  measures:\n' +
+      '    - name: Record Count\n' +
+      '      expr: COUNT(1)\n' +
+      '$$;\n'
+    );
+  });
+
+  it('treats LANGUAGE as a clause keyword with newline', () => {
+    const input = 'CREATE VIEW v WITH METRICS LANGUAGE YAML AS $$content$$;';
+    const result = formatDatabricksSQL(input);
+    expect(result).toContain('\nLANGUAGE');
+    expect(result).toContain('LANGUAGE YAML');
+  });
+
+  it('applies keyword case to METRICS', () => {
+    const input = 'CREATE VIEW v WITH metrics LANGUAGE yaml AS $$x$$;';
+    const upper = formatDatabricksSQL(input);
+    expect(upper).toContain('METRICS');
+
+    const lower = formatDatabricksSQL(input, { keywordCase: 'lower' });
+    expect(lower).toContain('metrics');
+  });
+
+  it('does not treat colons inside $$ as parameter markers', () => {
+    const input = 'SELECT $$ key: value $$';
+    const result = formatDatabricksSQL(input);
+    expect(result).toContain('$$ key: value $$');
+  });
+
+  it('handles empty dollar-quoted string', () => {
+    const input = 'SELECT $$$$ AS empty_body';
+    const result = formatDatabricksSQL(input);
+    expect(result).toContain('$$$$');
+  });
+
+  it('still handles ${var} parameters with dollar-quoted string support', () => {
+    const input = "SELECT * FROM ${catalog}.${schema}.my_table";
+    const result = formatDatabricksSQL(input);
+    expect(result).toContain('${catalog}');
+    expect(result).toContain('${schema}');
+  });
 });
