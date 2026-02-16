@@ -629,6 +629,39 @@ describe('formatDatabricksSQL', () => {
     expect(result).toContain('  SELECT id\n');
   });
 
+  // --- Function statements ---
+
+  it('formats CREATE OR REPLACE FUNCTION with RETURNS, COMMENT and RETURN', () => {
+    const input = "CREATE OR REPLACE FUNCTION my_catalog.my_schema.my_func(x INT) RETURNS INT COMMENT 'Adds one' RETURN x + 1;";
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'CREATE OR REPLACE FUNCTION my_catalog.my_schema.my_func(x INT)\n' +
+      'RETURNS INT\n' +
+      "COMMENT 'Adds one'\n" +
+      'RETURN x + 1;\n'
+    );
+  });
+
+  it('formats CREATE FUNCTION without COMMENT', () => {
+    const input = 'CREATE FUNCTION my_func(a STRING, b STRING) RETURNS STRING RETURN CONCAT(a, b);';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'CREATE FUNCTION my_func(a STRING, b STRING)\n' +
+      'RETURNS STRING\n' +
+      'RETURN CONCAT(a, b);\n'
+    );
+  });
+
+  it('formats CREATE OR REPLACE FUNCTION without COMMENT clause', () => {
+    const input = 'CREATE OR REPLACE FUNCTION my_ns.double_it(val INT) RETURNS INT RETURN val * 2;';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'CREATE OR REPLACE FUNCTION my_ns.double_it(val INT)\n' +
+      'RETURNS INT\n' +
+      'RETURN val * 2;\n'
+    );
+  });
+
   it('aligns comment with WHEN inside CASE block', () => {
     const input = "SELECT CASE /* check value */ WHEN x > 0 THEN 'pos' ELSE 'neg' END FROM t";
     const result = formatDatabricksSQL(input);
