@@ -752,4 +752,107 @@ describe('formatDatabricksSQL', () => {
     expect(result).toContain('${catalog}');
     expect(result).toContain('${schema}');
   });
+
+  // --- Unquoted YAML body (LANGUAGE ... AS without $$ delimiters) ---
+
+  it('preserves unquoted YAML body after LANGUAGE YAML AS', () => {
+    const input =
+      'CREATE VIEW v WITH METRICS\n' +
+      'LANGUAGE YAML\n' +
+      'AS\n' +
+      'version: 1.1\n' +
+      'source: my_table;';
+    const result = formatDatabricksSQL(input);
+    expect(result).toContain('version: 1.1\n');
+    expect(result).toContain('source: my_table');
+    // YAML keys should NOT be uppercased
+    expect(result).not.toContain('VERSION');
+  });
+
+  it('preserves unquoted YAML body with indented content', () => {
+    const input =
+      'CREATE VIEW v\n' +
+      'LANGUAGE YAML\n' +
+      'AS\n' +
+      'version: 1.1\n' +
+      'dimensions:\n' +
+      '  - name: Snapshot Date\n' +
+      '    expr: snapshot_date\n' +
+      'measures:\n' +
+      '  - name: Record Count\n' +
+      '    expr: COUNT(1);';
+    const result = formatDatabricksSQL(input);
+    expect(result).toContain('dimensions:\n');
+    expect(result).toContain('  - name: Snapshot Date\n');
+    expect(result).toContain('    expr: snapshot_date\n');
+    expect(result).toContain('measures:\n');
+    expect(result).toContain('    expr: COUNT(1)');
+  });
+
+  it('preserves original casing of YAML keys in unquoted body', () => {
+    const input =
+      'LANGUAGE YAML\n' +
+      'AS\n' +
+      'version: 1.1\n' +
+      'comment: "My View"\n' +
+      'source: schema.table;';
+    const result = formatDatabricksSQL(input);
+    // These words are SQL keywords but should preserve original case in YAML
+    expect(result).toContain('version');
+    expect(result).toContain('comment');
+    expect(result).toContain('source');
+  });
+
+  it('handles unquoted YAML body after full metric view DDL', () => {
+    const input =
+      'USE CATALOG IDENTIFIER(:catalog);\n\n' +
+      'CREATE OR REPLACE VIEW gold.fact_metrics\n' +
+      'WITH METRICS\n' +
+      'LANGUAGE YAML\n' +
+      'AS\n' +
+      '  version: 1.1\n' +
+      '  source: gold.fact_table\n' +
+      '  dimensions:\n' +
+      '    - name: Region\n' +
+      '      expr: region\n' +
+      '  measures:\n' +
+      '    - name: Record Count\n' +
+      '      expr: COUNT(1);';
+    const result = formatDatabricksSQL(input);
+    // First statement formatted normally
+    expect(result).toContain('USE CATALOG IDENTIFIER(:catalog);\n');
+    // YAML body preserved verbatim
+    expect(result).toContain('  version: 1.1\n');
+    expect(result).toContain('    - name: Region\n');
+    expect(result).toContain('      expr: region\n');
+    expect(result).toContain('    - name: Record Count\n');
+    expect(result).toContain('      expr: COUNT(1)');
+  });
+
+  it('does not merge quoted body when LANGUAGE AS has $$ delimiters', () => {
+    const input = 'LANGUAGE YAML AS $$\nversion: 1.1\n$$;';
+    const result = formatDatabricksSQL(input);
+    // Dollar-quoted content should be preserved as before
+    expect(result).toContain('$$\nversion: 1.1\n$$');
+  });
+
+  it('does not merge quoted body when LANGUAGE AS has single-quote string', () => {
+    const input = "LANGUAGE YAML AS 'version: 1.1';";
+    const result = formatDatabricksSQL(input);
+    expect(result).toContain("'version: 1.1'");
+  });
+
+  it('handles LANGUAGE SQL AS without merging (non-YAML language)', () => {
+    const input = 'CREATE FUNCTION f() RETURNS INT LANGUAGE SQL AS\nRETURN 1;';
+    const result = formatDatabricksSQL(input);
+    // The unquoted body after LANGUAGE SQL AS should also be preserved
+    expect(result).toContain('RETURN 1');
+  });
+
+  it('handles multiple dollar-quoted strings in sequence', () => {
+    const input = "SELECT $$first\nblock$$ AS a, $$second\nblock$$ AS b";
+    const result = formatDatabricksSQL(input);
+    expect(result).toContain('$$first\nblock$$');
+    expect(result).toContain('$$second\nblock$$');
+  });
 });

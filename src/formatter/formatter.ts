@@ -52,7 +52,8 @@ export function formatDatabricksSQL(
   }
 
   // Merge keyword sequences like "GROUP BY", "ORDER BY", etc.
-  const merged = mergeClauseKeywords(tokens);
+  // Then merge unquoted YAML body blocks into single verbatim tokens.
+  const merged = mergeUnquotedLanguageBody(mergeClauseKeywords(tokens));
 
   for (let i = 0; i < merged.length; i++) {
     const token = merged[i];
@@ -380,6 +381,33 @@ export function formatDatabricksSQL(
       continue;
     }
 
+    // Dollar-quoted strings — output verbatim, preserving internal formatting
+    if (token.type === TokenType.DollarQuotedString) {
+      if (!lineStart) {
+        if (prevMeaningful && prevMeaningful.type === TokenType.OpenParen) {
+          // no space after open paren
+        } else if (token.value.startsWith('\n') || token.value.startsWith('\r')) {
+          // Body starts with newline — don't add trailing space before the break
+        } else {
+          result.push(' ');
+        }
+      } else {
+        const topParen = parenStack.length > 0 ? parenStack[parenStack.length - 1] : null;
+        if (statementStart) {
+          result.push(indent());
+        } else if (topParen === 'block' || topParen === 'concat') {
+          result.push(indent());
+        } else {
+          result.push(indent() + ' '.repeat(opts.indentSize));
+        }
+      }
+      result.push(token.value);
+      lineStart = false;
+      statementStart = false;
+      prevMeaningful = token;
+      continue;
+    }
+
     // Default — add space and value
 
     // When SELECT has multiple columns, force first column onto new line
@@ -552,4 +580,82 @@ function findNextMeaningful(tokens: Token[], start: number): Token | null {
     }
   }
   return null;
+}
+
+/**
+ * Detect `LANGUAGE <identifier> AS` followed by unquoted body content and merge
+ * that content into a single DollarQuotedString token so the formatter preserves
+ * it verbatim instead of collapsing newlines and mangling keyword casing.
+ */
+function mergeUnquotedLanguageBody(tokens: Token[]): Token[] {
+  const result: Token[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+
+    // Look for LANGUAGE keyword
+    if (t.type !== TokenType.Keyword || t.value !== 'LANGUAGE') {
+      result.push(t);
+      continue;
+    }
+
+    // Found LANGUAGE — skip whitespace/newlines to find language identifier
+    let j = i + 1;
+    while (j < tokens.length && (tokens[j].type === TokenType.Whitespace || tokens[j].type === TokenType.Newline)) j++;
+    if (j >= tokens.length || (tokens[j].type !== TokenType.Identifier && tokens[j].type !== TokenType.Keyword)) {
+      result.push(t);
+      continue;
+    }
+    const langIdPos = j;
+
+    // Skip whitespace/newlines to find AS
+    j = langIdPos + 1;
+    while (j < tokens.length && (tokens[j].type === TokenType.Whitespace || tokens[j].type === TokenType.Newline)) j++;
+    if (j >= tokens.length || tokens[j].type !== TokenType.Keyword || tokens[j].value !== 'AS') {
+      result.push(t);
+      continue;
+    }
+    const asPos = j;
+
+    // Skip whitespace/newlines after AS to see what the body looks like
+    j = asPos + 1;
+    while (j < tokens.length && (tokens[j].type === TokenType.Whitespace || tokens[j].type === TokenType.Newline)) j++;
+
+    // If already properly quoted, leave everything as-is
+    if (j >= tokens.length || tokens[j].type === TokenType.DollarQuotedString || tokens[j].type === TokenType.String) {
+      result.push(t);
+      continue;
+    }
+
+    // Unquoted body — emit LANGUAGE, lang-id, AS tokens normally
+    for (let k = i; k <= asPos; k++) {
+      result.push(tokens[k]);
+    }
+
+    // Reconstruct the body text from all tokens between AS and the next ; or EOF,
+    // preserving original whitespace and newlines.
+    let body = '';
+    let k = asPos + 1;
+    // Include the whitespace/newline separator that immediately follows AS
+    while (k < tokens.length && tokens[k].type !== TokenType.Semicolon && tokens[k].type !== TokenType.EOF) {
+      if (tokens[k].type === TokenType.Newline) {
+        body += tokens[k].value;
+      } else if (tokens[k].type === TokenType.Whitespace) {
+        body += tokens[k].value;
+      } else {
+        // Use original casing if available (keywords store uppercased value)
+        body += tokens[k].original ?? tokens[k].value;
+      }
+      k++;
+    }
+
+    // Emit the merged body as a DollarQuotedString token (trimming trailing whitespace)
+    const trimmed = body.replace(/[\s\r\n]+$/, '');
+    if (trimmed) {
+      result.push({ type: TokenType.DollarQuotedString, value: trimmed });
+    }
+
+    // i now points past the body; k is at ; or EOF — the loop increment will move past it
+    i = k - 1;
+  }
+  return result;
 }
