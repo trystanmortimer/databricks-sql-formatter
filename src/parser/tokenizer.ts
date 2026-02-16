@@ -149,6 +149,22 @@ export function tokenize(input: string): Token[] {
       continue;
     }
 
+    // Dollar-quoted string ($$...$$) — preserves content verbatim
+    if (ch === '$' && i + 1 < input.length && input[i + 1] === '$') {
+      let str = '$$';
+      i += 2;
+      while (i < input.length) {
+        if (input[i] === '$' && i + 1 < input.length && input[i + 1] === '$') {
+          str += '$$';
+          i += 2;
+          break;
+        }
+        str += input[i++];
+      }
+      tokens.push({ type: TokenType.DollarQuotedString, value: str });
+      continue;
+    }
+
     // ${var} template parameters (Databricks widgets / Jinja)
     if (ch === '$' && i + 1 < input.length && input[i + 1] === '{') {
       let param = '${';

@@ -15,6 +15,7 @@ export enum TokenType {
   Newline = 'NEWLINE',
   Backtick = 'BACKTICK_IDENT',
   Parameter = 'PARAMETER',
+  DollarQuotedString = 'DOLLAR_QUOTED_STRING',
   EOF = 'EOF',
 }
 
