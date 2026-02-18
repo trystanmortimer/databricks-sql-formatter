@@ -2,7 +2,7 @@
   "name": "databricks-sql-formatter",
   "displayName": "Databricks SQL Formatter",
   "description": "A VS Code extension for formatting Databricks SQL, built from scratch.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "trystanmortimer",
   "license": "MIT",
   "engines": {
