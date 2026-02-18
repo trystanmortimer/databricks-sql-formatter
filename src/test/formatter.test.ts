@@ -519,6 +519,42 @@ describe('formatDatabricksSQL', () => {
     );
   });
 
+  it('keeps OR inside parenthesised group inline in JOIN ON clause', () => {
+    const input = 'select * from a join b on a.id = b.id and (a.type = b.type or a.type = b.alt_type)';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'SELECT *\n' +
+      'FROM a\n' +
+      'JOIN b\n' +
+      '  ON a.id = b.id\n' +
+      '  AND (a.type = b.type OR a.type = b.alt_type)\n'
+    );
+  });
+
+  it('keeps AND inside parenthesised group inline in JOIN ON clause', () => {
+    const input = 'select * from a join b on (a.id = b.id and a.type = b.type) or a.alt_id = b.alt_id';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'SELECT *\n' +
+      'FROM a\n' +
+      'JOIN b\n' +
+      '  ON (a.id = b.id AND a.type = b.type)\n' +
+      '  OR a.alt_id = b.alt_id\n'
+    );
+  });
+
+  it('keeps multiple OR conditions inline inside parenthesised group in JOIN', () => {
+    const input = 'select * from a left join b on a.id = b.id and (a.x = b.x or a.y = b.y or a.z = b.z)';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'SELECT *\n' +
+      'FROM a\n' +
+      'LEFT JOIN b\n' +
+      '  ON a.id = b.id\n' +
+      '  AND (a.x = b.x OR a.y = b.y OR a.z = b.z)\n'
+    );
+  });
+
   it('handles multiple OVER blocks inside function args', () => {
     const input = 'SELECT COALESCE(LAG(x) OVER (PARTITION BY a ORDER BY b), LEAD(x) OVER (PARTITION BY a ORDER BY b)) FROM t';
     const result = formatDatabricksSQL(input);

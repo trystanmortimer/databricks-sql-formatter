@@ -9,7 +9,7 @@ const CONCAT_FUNCTIONS = new Set(['CONCAT', 'CONCAT_WS']);
 
 // Keywords that take parenthesised arguments but are NOT function calls,
 // so they should have a space before the opening paren: IN (1, 2, 3)
-const NON_FUNCTION_KEYWORDS = new Set(['IN', 'NOT IN']);
+const NON_FUNCTION_KEYWORDS = new Set(['IN', 'NOT IN', 'AND', 'OR']);
 
 export function formatDatabricksSQL(
   input: string,
@@ -317,8 +317,10 @@ export function formatDatabricksSQL(
       continue;
     }
 
-    // AND/OR inside a JOIN ON clause — each condition on a new line
-    if (token.type === TokenType.Keyword && (token.value === 'AND' || token.value === 'OR') && inJoinOnClause) {
+    // AND/OR inside a JOIN ON clause — each condition on a new line,
+    // but keep inline when inside grouping parens e.g. AND (X=Y OR X=Z)
+    const topParenForLogical = parenStack.length > 0 ? parenStack[parenStack.length - 1] : null;
+    if (token.type === TokenType.Keyword && (token.value === 'AND' || token.value === 'OR') && inJoinOnClause && topParenForLogical !== 'grouping') {
       result.push('\n');
       result.push(indent() + ' '.repeat(opts.indentSize) + applyCase(token));
       lineStart = false;
