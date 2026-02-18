@@ -40,6 +40,9 @@ export function formatDatabricksSQL(
   // Track when SELECT has multiple columns so first column goes on new line
   let needNewlineBeforeFirstColumn = false;
 
+  // Track when we're inside a JOIN ON clause so AND/OR get newlines
+  let inJoinOnClause = false;
+
   const indent = () => ' '.repeat(opts.indentSize * indentLevel);
 
   function applyCase(token: Token): string {
@@ -159,6 +162,7 @@ export function formatDatabricksSQL(
       afterBlockClose = false;
       caseStack.length = 0;
       needNewlineBeforeFirstColumn = false;
+      inJoinOnClause = false;
       prevMeaningful = token;
       continue;
     }
@@ -313,6 +317,16 @@ export function formatDatabricksSQL(
       continue;
     }
 
+    // AND/OR inside a JOIN ON clause — each condition on a new line
+    if (token.type === TokenType.Keyword && (token.value === 'AND' || token.value === 'OR') && inJoinOnClause) {
+      result.push('\n');
+      result.push(indent() + ' '.repeat(opts.indentSize) + applyCase(token));
+      lineStart = false;
+      statementStart = false;
+      prevMeaningful = token;
+      continue;
+    }
+
     // COMMENT as a clause keyword in function definitions
     if (token.type === TokenType.Keyword && token.value === 'COMMENT' && functionContext) {
       if (!lineStart && result.length > 0) {
@@ -327,6 +341,9 @@ export function formatDatabricksSQL(
 
     // Major clause keywords — newline before
     if (token.type === TokenType.Keyword && CLAUSE_KEYWORDS.has(token.value)) {
+      // Enter JOIN ON context, or leave it on any other clause keyword
+      inJoinOnClause = token.value === 'ON';
+
       if (!lineStart && result.length > 0) {
         result.push('\n');
       }
