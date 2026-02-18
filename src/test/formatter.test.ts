@@ -442,6 +442,83 @@ describe('formatDatabricksSQL', () => {
     );
   });
 
+  it('puts AND on new line for multi-condition JOIN', () => {
+    const input = 'select * from table1 left join table2 on table1.id = table2.id and table1.name = table2.name';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'SELECT *\n' +
+      'FROM table1\n' +
+      'LEFT JOIN table2\n' +
+      '  ON table1.id = table2.id\n' +
+      '  AND table1.name = table2.name\n'
+    );
+  });
+
+  it('puts multiple ANDs on separate lines in JOIN condition', () => {
+    const input = 'select * from a join b on a.id = b.id and a.type = b.type and a.status = b.status';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'SELECT *\n' +
+      'FROM a\n' +
+      'JOIN b\n' +
+      '  ON a.id = b.id\n' +
+      '  AND a.type = b.type\n' +
+      '  AND a.status = b.status\n'
+    );
+  });
+
+  it('puts OR on new line in JOIN condition', () => {
+    const input = 'select * from a join b on a.id = b.id or a.alt_id = b.alt_id';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'SELECT *\n' +
+      'FROM a\n' +
+      'JOIN b\n' +
+      '  ON a.id = b.id\n' +
+      '  OR a.alt_id = b.alt_id\n'
+    );
+  });
+
+  it('handles multi-condition ON across multiple JOINs', () => {
+    const input = 'select * from a inner join b on a.id = b.id and a.type = b.type left join c on b.id = c.id and b.region = c.region';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'SELECT *\n' +
+      'FROM a\n' +
+      'INNER JOIN b\n' +
+      '  ON a.id = b.id\n' +
+      '  AND a.type = b.type\n' +
+      'LEFT JOIN c\n' +
+      '  ON b.id = c.id\n' +
+      '  AND b.region = c.region\n'
+    );
+  });
+
+  it('does not break AND/OR in WHERE clause onto new lines', () => {
+    const input = 'select * from t where a = 1 and b = 2 or c = 3';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'SELECT *\n' +
+      'FROM t\n' +
+      'WHERE a = 1 AND b = 2 OR c = 3\n'
+    );
+  });
+
+  it('handles multi-condition JOIN inside subquery', () => {
+    const input = 'select * from (select a.x from a join b on a.id = b.id and a.type = b.type) t';
+    const result = formatDatabricksSQL(input);
+    expect(result).toBe(
+      'SELECT *\n' +
+      'FROM (\n' +
+      '  SELECT a.x\n' +
+      '  FROM a\n' +
+      '  JOIN b\n' +
+      '    ON a.id = b.id\n' +
+      '    AND a.type = b.type\n' +
+      ') t\n'
+    );
+  });
+
   it('handles multiple OVER blocks inside function args', () => {
     const input = 'SELECT COALESCE(LAG(x) OVER (PARTITION BY a ORDER BY b), LEAD(x) OVER (PARTITION BY a ORDER BY b)) FROM t';
     const result = formatDatabricksSQL(input);
